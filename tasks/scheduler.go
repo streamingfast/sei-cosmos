@@ -549,9 +549,10 @@ func (s *scheduler) executeTask(task *deliverTxTask) {
 
 	s.prepareTask(task)
 
-	if task.TxTracer != nil {
-		task.TxTracer.Reset()
-	}
+	// This fixes the TxTracer state issue when I uncomment it
+	// if task.TxTracer != nil {
+	// 	task.TxTracer.Reset()
+	// }
 
 	fmt.Printf("[Scheduler] delivering task for execution] (tracer=%s)\n", task.TxTracerID)
 	resp := s.deliverTx(task.Ctx, task.Request, task.SdkTx, task.Checksum)
