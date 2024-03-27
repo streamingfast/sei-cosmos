@@ -88,7 +88,7 @@ func (dt *deliverTxTask) Reset() {
 	dt.VersionStores = nil
 
 	if dt.TxTracer != nil {
-		fmt.Printf("[Scheduler] reset tx tracer call (tracer=%p)\n", dt.TxTracer)
+		fmt.Printf("[Scheduler] reset tx tracer call (tracer=%s, status=%s)\n", dt.TxTracerID, dt.Status)
 		dt.TxTracer.Reset()
 	}
 }
@@ -423,8 +423,12 @@ func (s *scheduler) validateAll(ctx sdk.Context, tasks []*deliverTxTask) ([]*del
 	for i := startIdx; i < len(tasks); i++ {
 		wg.Add(1)
 		t := tasks[i]
+		fmt.Printf("[Scheduler] task state before DoValidate (tracer=%s, status=%s, synchronous=%t)\n", t.TxTracerID, t.Status, s.synchronous)
 		s.DoValidate(func() {
-			defer wg.Done()
+			defer func() {
+				fmt.Printf("[Scheduler] task state after DoValidate (tracer=%s, status=%s, synchronous=%t)\n", t.TxTracerID, t.Status, s.synchronous)
+				wg.Done()
+			}()
 			if !s.validateTask(ctx, t) {
 				mx.Lock()
 				defer mx.Unlock()
@@ -436,7 +440,7 @@ func (s *scheduler) validateAll(ctx sdk.Context, tasks []*deliverTxTask) ([]*del
 				}
 				res = append(res, t)
 			} else {
-				fmt.Printf("[Scheduler] task validated correctly, skipping task.Reset() call in validateAll() (tracer=%s)\n", t.TxTracerID)
+				fmt.Printf("[Scheduler] task validated correctly, skipping task.Reset() call in validateAll() (tracer=%s, status=%s, synchronous=%t)\n", t.TxTracerID, t.Status, s.synchronous)
 			}
 		})
 	}
@@ -540,7 +544,7 @@ func (s *scheduler) executeTask(task *deliverTxTask) {
 		s.shouldRerun(task)
 
 		if task.IsStatus(statusValidated) {
-			fmt.Printf("[Scheduler] task validated correctly, skipping task.Reset() call in executeTask() (tracer=%s)\n", task.TxTracerID)
+			fmt.Printf("[Scheduler] task validated correctly, skipping task.Reset() call in executeTask() (tracer=%s, status=%s, synchronous=%t)\n", task.TxTracerID, task.Status, s.synchronous)
 			return
 		}
 		task.Reset()
@@ -554,7 +558,7 @@ func (s *scheduler) executeTask(task *deliverTxTask) {
 	// 	task.TxTracer.Reset()
 	// }
 
-	fmt.Printf("[Scheduler] delivering task for execution] (tracer=%s)\n", task.TxTracerID)
+	fmt.Printf("[Scheduler] delivering task for execution (tracer=%s, status=%s, synchronous=%t)\n", task.TxTracerID, task.Status, s.synchronous)
 	resp := s.deliverTx(task.Ctx, task.Request, task.SdkTx, task.Checksum)
 
 	// if an abort occurred, we want to handle that at this level
