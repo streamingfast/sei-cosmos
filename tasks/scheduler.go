@@ -55,6 +55,8 @@ type deliverTxTask struct {
 	AbsoluteIndex int
 	Response      *types.ResponseDeliverTx
 	VersionStores map[sdk.StoreKey]*multiversion.VersionIndexedStore
+	TxTracer      sdk.TxTracer
+	TxTracerID    string
 }
 
 // AppendDependencies appends the given indexes to the task's dependencies
@@ -84,6 +86,11 @@ func (dt *deliverTxTask) Reset() {
 	dt.Abort = nil
 	dt.AbortCh = nil
 	dt.VersionStores = nil
+
+	if dt.TxTracer != nil {
+		fmt.Printf("[Scheduler] reset tx tracer call (tracer=%p)\n", dt.TxTracer)
+		dt.TxTracer.Reset()
+	}
 }
 
 func (dt *deliverTxTask) Increment() {
@@ -188,7 +195,10 @@ func toTasks(reqs []*sdk.DeliverTxEntry) ([]*deliverTxTask, map[int]*deliverTxTa
 			AbsoluteIndex: r.AbsoluteIndex,
 			Status:        statusPending,
 			Dependencies:  map[int]struct{}{},
+			TxTracer:      r.TxTracer,
+			TxTracerID:    fmt.Sprintf("%03d-%p", r.AbsoluteIndex, r.TxTracer),
 		}
+
 		tasksMap[r.AbsoluteIndex] = task
 		allTasks = append(allTasks, task)
 	}
@@ -199,6 +209,10 @@ func (s *scheduler) collectResponses(tasks []*deliverTxTask) []types.ResponseDel
 	res := make([]types.ResponseDeliverTx, 0, len(tasks))
 	for _, t := range tasks {
 		res = append(res, *t.Response)
+
+		if t.TxTracer != nil {
+			t.TxTracer.Commit()
+		}
 	}
 	return res
 }
@@ -421,6 +435,8 @@ func (s *scheduler) validateAll(ctx sdk.Context, tasks []*deliverTxTask) ([]*del
 					s.maxIncarnation = t.Incarnation
 				}
 				res = append(res, t)
+			} else {
+				fmt.Printf("[Scheduler] task validated correctly, skipping task.Reset() call in validateAll() (tracer=%s)\n", t.TxTracerID)
 			}
 		})
 	}
@@ -505,6 +521,10 @@ func (s *scheduler) prepareTask(task *deliverTxTask) {
 		ctx = ctx.WithMultiStore(ms)
 	}
 
+	if task.TxTracer != nil {
+		ctx = task.TxTracer.GetTxContext(ctx)
+	}
+
 	task.AbortCh = abortCh
 	task.Ctx = ctx
 }
@@ -518,7 +538,9 @@ func (s *scheduler) executeTask(task *deliverTxTask) {
 	// if already validated, then this does another validation
 	if s.synchronous && task.IsStatus(statusValidated) {
 		s.shouldRerun(task)
+
 		if task.IsStatus(statusValidated) {
+			fmt.Printf("[Scheduler] task validated correctly, skipping task.Reset() call in executeTask() (tracer=%s)\n", task.TxTracerID)
 			return
 		}
 		task.Reset()
@@ -527,6 +549,11 @@ func (s *scheduler) executeTask(task *deliverTxTask) {
 
 	s.prepareTask(task)
 
+	if task.TxTracer != nil {
+		task.TxTracer.Reset()
+	}
+
+	fmt.Printf("[Scheduler] delivering task for execution] (tracer=%s)\n", task.TxTracerID)
 	resp := s.deliverTx(task.Ctx, task.Request, task.SdkTx, task.Checksum)
 
 	// if an abort occurred, we want to handle that at this level

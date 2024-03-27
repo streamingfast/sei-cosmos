@@ -5,6 +5,13 @@ import (
 	abci "github.com/tendermint/tendermint/abci/types"
 )
 
+// PR REVIEW: Unsure what's the best place for this interface
+type TxTracer interface {
+	GetTxContext(ctx Context) Context
+	Reset()
+	Commit()
+}
+
 // DeliverTxEntry represents an individual transaction's request within a batch.
 // This can be extended to include tx-level tracing or metadata
 type DeliverTxEntry struct {
@@ -13,6 +20,7 @@ type DeliverTxEntry struct {
 	Checksum           [32]byte
 	AbsoluteIndex      int
 	EstimatedWritesets MappedWritesets
+	TxTracer           TxTracer
 }
 
 // EstimatedWritesets represents an estimated writeset for a transaction mapped by storekey to the writeset estimate.
