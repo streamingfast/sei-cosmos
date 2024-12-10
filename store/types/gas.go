@@ -96,7 +96,7 @@ func addUint64Overflow(a, b uint64) (uint64, bool) {
 }
 
 func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
-	fmt.Fprintf(os.Stderr, "[Firehose (gas)] Consuming gas %d", amount)
+	fmt.Fprintf(os.Stderr, "[Firehose (gas)] Consuming gas %d\n", amount)
 
 	g.lock.Lock()
 	defer g.lock.Unlock()
@@ -131,7 +131,7 @@ func (g *basicGasMeter) incrGasExceededCounter(errorType string, descriptor stri
 // EVM-compatible chains can fully support the go-ethereum StateDb interface.
 // See https://github.com/cosmos/cosmos-sdk/pull/9403 for reference.
 func (g *basicGasMeter) RefundGas(amount Gas, descriptor string) {
-	fmt.Fprintf(os.Stderr, "[Firehose (gas)] Refunding gas %d", amount)
+	fmt.Fprintf(os.Stderr, "[Firehose (gas)] Refunding gas %d\n", amount)
 
 	g.lock.Lock()
 	defer g.lock.Unlock()
